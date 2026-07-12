@@ -12,3 +12,25 @@
 * **状态实时同步**：支持后台实时检测数据的标注状态（已标注/未标注），防止重复标注。
 * **单目录管理**：图片与 `.json` 标签存储在同一个文件夹内，方便管理、打包与迁移。
 * **灵活启动**：支持命令行参数自定义标注数据路径以及服务端口。
+
+---
+&grave;&grave;&grave;bash
+pip install Flask Pillow
+&grave;&grave;&grave;
+
+&num;&num;&num; 2&period; 启动服务
+
+&ast;&ast;使用默认目录与端口启动：&ast;&ast;
+默认数据存放于 &grave;&period;&sol;data&sol;images&grave;，服务端口为 &grave;5000&grave;。
+&grave;&grave;&grave;bash
+python app.py
+&grave;&grave;&grave;
+
+&ast;&ast;自定义数据路径与端口启动：&ast;&ast;
+你可以通过命令行参数 &grave;&hyphen;&hyphen;data&hyphen;dir&grave; 指定任意包含图片的文件夹，并通过 &grave;&hyphen;&hyphen;port&grave; 修改端口：
+&grave;&grave;&grave;bash
+python app.py --data-dir /path/to/your/dataset --port 8080
+&grave;&grave;&grave;
+
+&num;&num;&num; 3&period; 开始标注
+打开浏览器，访问：&grave;http://localhost:5000&grave; （或你指定的对应 IP 与端口），即可看到前端标注控制台。
