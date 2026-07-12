@@ -14,9 +14,9 @@
 * **灵活启动**：支持命令行参数自定义标注数据路径以及服务端口。
 
 ---
-&grave;&grave;&grave;bash
+```bash
 pip install Flask Pillow
-&grave;&grave;&grave;
+```
 
 &num;&num;&num; 2&period; 启动服务
 
