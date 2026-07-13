@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
 <title>Web Labelme</title>
 
 <style>
@@ -21,11 +22,21 @@
     overflow: hidden;
   }
 
+  button,
+  input,
+  select {
+    font-family: inherit;
+  }
+
   #app {
     display: flex;
     flex-direction: column;
     height: 100%;
   }
+
+  /* ==========================================================
+     工具栏
+     ========================================================== */
 
   #toolbar {
     display: flex;
@@ -77,6 +88,10 @@
     user-select: none;
   }
 
+  /* ==========================================================
+     主区域
+     ========================================================== */
+
   #main {
     flex: 1;
     display: flex;
@@ -97,9 +112,13 @@
     left: 0;
   }
 
+  /* ==========================================================
+     右侧栏
+     ========================================================== */
+
   #side {
-    width: 260px;
-    min-width: 180px;
+    width: 290px;
+    min-width: 210px;
     display: flex;
     flex-direction: column;
     background: #252526;
@@ -130,6 +149,12 @@
     list-style: none;
     overflow-y: auto;
     flex: 1;
+  }
+
+  #filterPanel {
+    flex: none;
+    max-height: 330px;
+    overflow-y: auto;
   }
 
   #shapePanel {
@@ -194,7 +219,113 @@
   .annotated-mark {
     color: #4caf50;
     flex: none;
+    width: 12px;
+    text-align: center;
   }
+
+  /* ==========================================================
+     筛选面板
+     ========================================================== */
+
+  .filter-section {
+    padding: 7px 8px;
+    border-bottom: 1px solid #3a3a3a;
+  }
+
+  .filter-section:last-child {
+    border-bottom: none;
+  }
+
+  .filter-title {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-bottom: 5px;
+    color: #bbb;
+    font-size: 12px;
+  }
+
+  .filter-title .spacer {
+    flex: 1;
+  }
+
+  .filter-title button {
+    padding: 1px 6px;
+    border: 1px solid #555;
+    border-radius: 3px;
+    background: #3c3c3c;
+    color: #ddd;
+    cursor: pointer;
+    font-size: 11px;
+  }
+
+  .filter-title button:hover {
+    background: #4a4a4a;
+  }
+
+  .filter-options {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    max-height: 95px;
+    overflow-y: auto;
+  }
+
+  .filter-options label {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    cursor: pointer;
+    overflow: hidden;
+    user-select: none;
+  }
+
+  .filter-options label:hover {
+    color: #fff;
+  }
+
+  .filter-options label span {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .filter-options .filter-count {
+    flex: none;
+    color: #888;
+    font-size: 11px;
+  }
+
+  #userSelect {
+    width: 100%;
+    padding: 5px 6px;
+    background: #1e1e1e;
+    color: #ddd;
+    border: 1px solid #555;
+    border-radius: 4px;
+  }
+
+  #userSelect:focus {
+    outline: none;
+    border-color: #0e639c;
+  }
+
+  #userQuota {
+    margin-top: 5px;
+    color: #999;
+    font-size: 11px;
+  }
+
+  #filterSummary {
+    color: #999;
+    font-size: 11px;
+    line-height: 1.5;
+  }
+
+  /* ==========================================================
+     状态栏
+     ========================================================== */
 
   #status {
     display: flex;
@@ -211,10 +342,20 @@
     flex: none;
   }
 
+  #stFile {
+    max-width: 45vw;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
   #stDirty {
     color: #ffd54f;
     font-weight: bold;
   }
+
+  /* ==========================================================
+     标签对话框
+     ========================================================== */
 
   .modal-mask {
     position: fixed;
@@ -301,6 +442,10 @@
     color: #fff;
   }
 
+  /* ==========================================================
+     消息提示
+     ========================================================== */
+
   #toast {
     position: fixed;
     top: 60px;
@@ -313,6 +458,10 @@
     z-index: 200;
     display: none;
     border: 1px solid #555;
+    max-width: 80vw;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   #toast.err {
@@ -322,8 +471,10 @@
 </head>
 
 <body>
+
 <div id="app">
 
+  <!-- 工具栏 -->
   <div id="toolbar">
     <button id="btnPrev" title="上一张 (A)">◀ 上一张</button>
     <button id="btnNext" title="下一张 (D)">下一张 ▶</button>
@@ -354,7 +505,6 @@
       title="创建圆 (C)"
     >◯ 圆</button>
 
-    <!-- 原来的 line 已替换为 linestrip -->
     <button
       data-mode="linestrip"
       class="mode-btn"
@@ -389,32 +539,80 @@
     <button id="btnOrig" title="原始大小">1:1</button>
   </div>
 
+  <!-- 主区域 -->
   <div id="main">
+
     <div id="canvasWrap">
       <canvas id="cv"></canvas>
     </div>
 
     <div id="side">
+
+      <!-- 任务筛选 -->
+      <div class="panel" id="filterPanel">
+        <h3>任务筛选</h3>
+
+        <div class="filter-section" id="userSection">
+          <div class="filter-title">当前用户</div>
+
+          <select id="userSelect"></select>
+
+          <div id="userQuota"></div>
+        </div>
+
+        <div class="filter-section" id="folderSection">
+          <div class="filter-title">
+            <span>子文件夹</span>
+            <span class="spacer"></span>
+            <button type="button" id="folderAll">全选</button>
+            <button type="button" id="folderNone">清空</button>
+          </div>
+
+          <div id="folderFilters" class="filter-options"></div>
+        </div>
+
+        <div class="filter-section" id="groupSection">
+          <div class="filter-title">
+            <span>文件名分类</span>
+            <span class="spacer"></span>
+            <button type="button" id="groupAll">全选</button>
+            <button type="button" id="groupNone">清空</button>
+          </div>
+
+          <div id="groupFilters" class="filter-options"></div>
+        </div>
+
+        <div class="filter-section">
+          <div id="filterSummary">正在加载……</div>
+        </div>
+      </div>
+
+      <!-- 标注列表 -->
       <div class="panel" id="shapePanel">
         <h3>标注列表</h3>
         <ul id="shapeList"></ul>
       </div>
 
+      <!-- 标签列表 -->
       <div class="panel" id="labelPanel">
         <h3>标签</h3>
         <ul id="labelList"></ul>
       </div>
 
+      <!-- 文件列表 -->
       <div class="panel" id="filePanel">
         <h3>
           文件列表
           <span id="fileCount"></span>
         </h3>
+
         <ul id="fileList"></ul>
       </div>
+
     </div>
   </div>
 
+  <!-- 状态栏 -->
   <div id="status">
     <span id="stFile">未加载</span>
     <span id="stZoom"></span>
@@ -422,8 +620,10 @@
     <span id="stMode"></span>
     <span id="stDirty"></span>
   </div>
+
 </div>
 
+<!-- 标签对话框 -->
 <div id="modal" class="modal-mask" style="display:none">
   <div class="modal-box">
     <h3>标注标签</h3>
@@ -466,28 +666,44 @@
   const labelInput = document.getElementById("labelInput");
   const groupInput = document.getElementById("groupInput");
 
-  // ============================================================
-  // 状态
-  // ============================================================
+  /* ============================================================
+     状态
+     ============================================================ */
 
+  let serverConfig = {
+    users: [],
+    defaultUser: null,
+    filenameGroups: [],
+    assignmentEnabled: false
+  };
+
+  /*
+   * 后端返回的、当前用户所有可访问的图片详细信息：
+   *
+   * {
+   *   name: "folder/a.jpg",
+   *   folder: "folder",
+   *   groups: ["白天"],
+   *   annotated: true
+   * }
+   */
+  let imageItems = [];
+
+  /*
+   * 应用子目录和文件名分类筛选后的图片路径。
+   */
   let images = [];
+
+  let currentUser = null;
+  let selectedFolders = new Set();
+  let selectedFilenameGroups = new Set();
+
   let curIdx = -1;
 
   let img = null;
   let imgW = 0;
   let imgH = 0;
 
-  /*
-   * shape:
-   * {
-   *   label,
-   *   points: [[x, y], ...],
-   *   group_id,
-   *   shape_type,
-   *   flags,
-   *   hidden
-   * }
-   */
   let shapes = [];
 
   let dirty = false;
@@ -501,18 +717,7 @@
 
   let mode = "edit";
 
-  /*
-   * polygon 和 linestrip 共用 drawing。
-   *
-   * polygon:
-   *   至少 3 个点，完成后闭合。
-   *
-   * linestrip:
-   *   至少 2 个点，完成后不闭合。
-   */
   let drawing = [];
-
-  // 矩形、圆的起始点
   let drawStart = null;
 
   let mouse = null;
@@ -534,11 +739,7 @@
   let labelColors = {};
 
   /*
-   * 【修复 3】图片加载序号。
-   *
-   * 快速连续翻图时，旧图片的 onload / fetch 可能晚于新图片完成，
-   * 导致旧图的标注被写到新图上。
-   * 每次 openImage 递增序号，异步回调中若序号不匹配则丢弃结果。
+   * 防止连续切换图片时，旧请求覆盖新图片。
    */
   let loadSeq = 0;
 
@@ -560,6 +761,10 @@
     "#ffe119"
   ];
 
+  /* ============================================================
+     通用辅助函数
+     ============================================================ */
+
   function getColor(label) {
     if (!(label in labelColors)) {
       const index = Object.keys(labelColors).length % PALETTE.length;
@@ -577,12 +782,6 @@
     return `rgba(${r},${g},${b},${alpha})`;
   }
 
-  /*
-   * 兼容部分旧数据或非标准数据。
-   *
-   * Labelme 中折线的标准名称为 linestrip，
-   * 如果后端返回 polyline，则在前端转换为 linestrip。
-   */
   function normalizeShapeType(type) {
     if (type === "polyline") {
       return "linestrip";
@@ -591,9 +790,76 @@
     return type || "polygon";
   }
 
-  // ============================================================
-  // 坐标转换
-  // ============================================================
+  /*
+   * 对路径的每一段分别编码，保留目录分隔符 /。
+   *
+   * folder/a b.jpg
+   * ->
+   * folder/a%20b.jpg
+   */
+  function encodeImagePath(path) {
+    return path
+      .split("/")
+      .map(part => encodeURIComponent(part))
+      .join("/");
+  }
+
+  function getAvailableFolders() {
+    return [
+      ...new Set(
+        imageItems.map(item => item.folder || "")
+      )
+    ].sort((a, b) => a.localeCompare(b));
+  }
+
+  function getCurrentImageName() {
+    if (
+      curIdx < 0 ||
+      curIdx >= images.length
+    ) {
+      return null;
+    }
+
+    return images[curIdx];
+  }
+
+  function resetCurrentImage() {
+    loadSeq++;
+
+    curIdx = -1;
+
+    img = null;
+    imgW = 0;
+    imgH = 0;
+
+    shapes = [];
+    history = [];
+
+    selectedIdx = -1;
+
+    drawing = [];
+    drawStart = null;
+    drag = null;
+
+    hover = {
+      shape: -1,
+      handle: null,
+      edge: null
+    };
+
+    dirty = false;
+
+    refreshShapeList();
+    refreshLabelList();
+    refreshFileList();
+
+    render();
+    updateStatus();
+  }
+
+  /* ============================================================
+     坐标转换
+     ============================================================ */
 
   function i2c(point) {
     return [
@@ -616,9 +882,9 @@
     ];
   }
 
-  // ============================================================
-  // 几何计算
-  // ============================================================
+  /* ============================================================
+     几何计算
+     ============================================================ */
 
   function dist(a, b) {
     return Math.hypot(
@@ -630,6 +896,7 @@
   function projSeg(p, a, b) {
     const dx = b[0] - a[0];
     const dy = b[1] - a[1];
+
     const lengthSquared = dx ** 2 + dy ** 2;
 
     if (lengthSquared === 0) {
@@ -650,7 +917,10 @@
   }
 
   function distSeg(p, a, b) {
-    return dist(p, projSeg(p, a, b));
+    return dist(
+      p,
+      projSeg(p, a, b)
+    );
   }
 
   function inPoly(p, points) {
@@ -784,21 +1054,22 @@
         );
 
       case "point":
-        return dist(point, shape.points[0]) < threshold;
+        return (
+          dist(point, shape.points[0]) <
+          threshold
+        );
 
-      /*
-       * line、linestrip 以及其他开放路径。
-       *
-       * 保留 line 的识别能力，是为了兼容已经存在的旧标注，
-       * 但本页面不再创建新的 line。
-       */
       default:
-        for (let i = 0; i < shape.points.length - 1; i++) {
+        for (
+          let index = 0;
+          index < shape.points.length - 1;
+          index++
+        ) {
           if (
             distSeg(
               point,
-              shape.points[i],
-              shape.points[i + 1]
+              shape.points[index],
+              shape.points[index + 1]
             ) < threshold
           ) {
             return true;
@@ -810,15 +1081,26 @@
   }
 
   function findHandle(point, threshold) {
-    for (let shapeIndex = shapes.length - 1; shapeIndex >= 0; shapeIndex--) {
+    for (
+      let shapeIndex = shapes.length - 1;
+      shapeIndex >= 0;
+      shapeIndex--
+    ) {
       if (shapes[shapeIndex].hidden) {
         continue;
       }
 
       const handles = getHandles(shapes[shapeIndex]);
 
-      for (let handleIndex = 0; handleIndex < handles.length; handleIndex++) {
-        if (dist(point, handles[handleIndex]) < threshold) {
+      for (
+        let handleIndex = 0;
+        handleIndex < handles.length;
+        handleIndex++
+      ) {
+        if (
+          dist(point, handles[handleIndex]) <
+          threshold
+        ) {
           return {
             si: shapeIndex,
             hi: handleIndex
@@ -880,7 +1162,11 @@
   }
 
   function findShape(point, threshold) {
-    for (let shapeIndex = shapes.length - 1; shapeIndex >= 0; shapeIndex--) {
+    for (
+      let shapeIndex = shapes.length - 1;
+      shapeIndex >= 0;
+      shapeIndex--
+    ) {
       if (shapes[shapeIndex].hidden) {
         continue;
       }
@@ -899,9 +1185,9 @@
     return -1;
   }
 
-  // ============================================================
-  // 历史记录与脏标记
-  // ============================================================
+  /* ============================================================
+     历史记录与脏标记
+     ============================================================ */
 
   function snapshot() {
     history.push(JSON.stringify(shapes));
@@ -922,8 +1208,10 @@
     drag = null;
 
     markDirty();
+
     refreshShapeList();
     refreshLabelList();
+
     render();
   }
 
@@ -932,53 +1220,426 @@
     updateStatus();
   }
 
-  // ============================================================
-  // 网络请求
-  // ============================================================
+  /* ============================================================
+     服务端配置与图片列表
+     ============================================================ */
+
+  async function loadServerConfig() {
+    const response = await fetch("./api/config");
+
+    if (!response.ok) {
+      throw new Error("加载服务配置失败");
+    }
+
+    const data = await response.json();
+
+    serverConfig = {
+      users: Array.isArray(data.users)
+        ? data.users
+        : [],
+
+      defaultUser: data.defaultUser || null,
+
+      filenameGroups: Array.isArray(data.filenameGroups)
+        ? data.filenameGroups
+        : [],
+
+      assignmentEnabled: Boolean(data.assignmentEnabled)
+    };
+
+    const userSection = document.getElementById("userSection");
+    const groupSection = document.getElementById("groupSection");
+    const userSelect = document.getElementById("userSelect");
+
+    userSelect.innerHTML = "";
+
+    if (serverConfig.users.length) {
+      serverConfig.users.forEach(user => {
+        const option = document.createElement("option");
+
+        option.value = user.name;
+        option.textContent = user.name;
+
+        userSelect.appendChild(option);
+      });
+
+      currentUser = (
+        serverConfig.defaultUser ||
+        serverConfig.users[0].name
+      );
+
+      userSelect.value = currentUser;
+      userSection.style.display = "";
+    } else {
+      currentUser = null;
+      userSection.style.display = "none";
+    }
+
+    groupSection.style.display = (
+      serverConfig.filenameGroups.length
+        ? ""
+        : "none"
+    );
+
+    updateUserQuota();
+  }
+
+  function updateUserQuota() {
+    const element = document.getElementById("userQuota");
+
+    if (!currentUser) {
+      element.textContent = "";
+      return;
+    }
+
+    const user = serverConfig.users.find(
+      item => item.name === currentUser
+    );
+
+    if (!user) {
+      element.textContent = "";
+      return;
+    }
+
+    element.textContent = (
+      `已分配 ${user.assigned} 张，配额 ${user.quota} 张`
+    );
+  }
 
   async function loadImageList() {
-    const response = await fetch("./api/images?detail=1");
+    const params = new URLSearchParams();
+
+    params.set("detail", "1");
+
+    if (currentUser) {
+      params.set("user", currentUser);
+    }
+
+    const response = await fetch(
+      "./api/images?" + params.toString()
+    );
+
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+
+      throw new Error(
+        data.message ||
+        data.error ||
+        "加载图片列表失败"
+      );
+    }
+
     const list = await response.json();
 
-    images = list.map(item => item.name);
+    if (!Array.isArray(list)) {
+      throw new Error("图片列表格式错误");
+    }
+
+    imageItems = list;
 
     annotated = new Set(
-      list
+      imageItems
         .filter(item => item.annotated)
         .map(item => item.name)
     );
 
-    refreshFileList();
+    initializeFilters();
+
+    await applyImageFilters(true);
+  }
+
+  function initializeFilters() {
+    const folders = getAvailableFolders();
+
+    selectedFolders = new Set(folders);
+
+    selectedFilenameGroups = new Set(
+      serverConfig.filenameGroups.map(
+        group => group.id
+      )
+    );
+
+    renderFolderFilters();
+    renderFilenameGroupFilters();
+    updateFilterSummary();
+  }
+
+  /* ============================================================
+     筛选面板
+     ============================================================ */
+
+  function renderFolderFilters() {
+    const container = document.getElementById("folderFilters");
+    const folders = getAvailableFolders();
+
+    container.innerHTML = "";
+
+    folders.forEach(folder => {
+      const count = imageItems.filter(
+        item => (item.folder || "") === folder
+      ).length;
+
+      const label = document.createElement("label");
+      const checkbox = document.createElement("input");
+      const text = document.createElement("span");
+      const countElement = document.createElement("span");
+
+      checkbox.type = "checkbox";
+      checkbox.checked = selectedFolders.has(folder);
+
+      text.textContent = folder || "根目录";
+      text.title = folder || "根目录";
+
+      countElement.className = "filter-count";
+      countElement.textContent = count;
+
+      checkbox.addEventListener("change", async () => {
+        const previous = new Set(selectedFolders);
+        const next = new Set(selectedFolders);
+
+        if (checkbox.checked) {
+          next.add(folder);
+        } else {
+          next.delete(folder);
+        }
+
+        selectedFolders = next;
+
+        const success = await applyImageFilters();
+
+        if (!success) {
+          selectedFolders = previous;
+          renderFolderFilters();
+          updateFilterSummary();
+        }
+
+        checkbox.blur();
+      });
+
+      label.append(
+        checkbox,
+        text,
+        countElement
+      );
+
+      container.appendChild(label);
+    });
+
+    document.getElementById("folderSection").style.display = (
+      folders.length
+        ? ""
+        : "none"
+    );
+  }
+
+  function renderFilenameGroupFilters() {
+    const container = document.getElementById("groupFilters");
+
+    container.innerHTML = "";
+
+    serverConfig.filenameGroups.forEach(group => {
+      const count = imageItems.filter(item => {
+        return (item.groups || []).includes(group.id);
+      }).length;
+
+      const label = document.createElement("label");
+      const checkbox = document.createElement("input");
+      const text = document.createElement("span");
+      const countElement = document.createElement("span");
+
+      checkbox.type = "checkbox";
+
+      checkbox.checked = selectedFilenameGroups.has(
+        group.id
+      );
+
+      text.textContent = group.label;
+      text.title = (
+        Array.isArray(group.keywords) &&
+        group.keywords.length
+      )
+        ? group.keywords.join(", ")
+        : group.label;
+
+      countElement.className = "filter-count";
+      countElement.textContent = count;
+
+      checkbox.addEventListener("change", async () => {
+        const previous = new Set(
+          selectedFilenameGroups
+        );
+
+        const next = new Set(
+          selectedFilenameGroups
+        );
+
+        if (checkbox.checked) {
+          next.add(group.id);
+        } else {
+          next.delete(group.id);
+        }
+
+        selectedFilenameGroups = next;
+
+        const success = await applyImageFilters();
+
+        if (!success) {
+          selectedFilenameGroups = previous;
+          renderFilenameGroupFilters();
+          updateFilterSummary();
+        }
+
+        checkbox.blur();
+      });
+
+      label.append(
+        checkbox,
+        text,
+        countElement
+      );
+
+      container.appendChild(label);
+    });
+  }
+
+  function imageMatchesFilters(item) {
+    const folder = item.folder || "";
+
+    if (!selectedFolders.has(folder)) {
+      return false;
+    }
+
+    if (!serverConfig.filenameGroups.length) {
+      return true;
+    }
+
+    const groups = Array.isArray(item.groups)
+      ? item.groups
+      : [];
+
+    return groups.some(group => {
+      return selectedFilenameGroups.has(group);
+    });
+  }
+
+  function updateFilterSummary() {
+    const total = imageItems.length;
+    const filtered = images.length;
+
+    const annotatedCount = images.filter(
+      name => annotated.has(name)
+    ).length;
+
+    const pendingCount = Math.max(
+      0,
+      filtered - annotatedCount
+    );
+
+    document.getElementById("filterSummary").textContent = (
+      `当前显示 ${filtered}/${total} 张；` +
+      `已标注 ${annotatedCount} 张；` +
+      `未标注 ${pendingCount} 张`
+    );
+  }
+
+  async function applyImageFilters(forceReset = false) {
+    const oldName = getCurrentImageName();
+
+    const nextImages = imageItems
+      .filter(imageMatchesFilters)
+      .map(item => item.name);
+
+    /*
+     * 当前图片被筛选条件排除时，需要先处理未保存内容。
+     */
+    if (
+      !forceReset &&
+      oldName &&
+      !nextImages.includes(oldName) &&
+      dirty
+    ) {
+      if (document.getElementById("autoSave").checked) {
+        const saved = await save();
+
+        if (!saved) {
+          return false;
+        }
+      } else {
+        const confirmed = confirm(
+          "当前图片有未保存的修改，切换筛选条件将丢失。确定继续？"
+        );
+
+        if (!confirmed) {
+          return false;
+        }
+      }
+    }
+
+    images = nextImages;
+
+    /*
+     * 当前图片仍在新的筛选结果中，则不重新加载图片。
+     */
+    if (
+      !forceReset &&
+      oldName &&
+      images.includes(oldName) &&
+      img
+    ) {
+      curIdx = images.indexOf(oldName);
+
+      refreshFileList();
+      updateStatus();
+      updateFilterSummary();
+
+      return true;
+    }
+
+    resetCurrentImage();
 
     if (images.length) {
-      openImage(0);
+      await openImage(0);
     } else {
-      flash("目录中没有图片", true);
+      refreshFileList();
+      updateStatus();
+      updateFilterSummary();
+
+      flash("当前筛选条件下没有图片", true);
     }
+
+    return true;
   }
+
+  /* ============================================================
+     图片与标注网络请求
+     ============================================================ */
 
   async function openImage(index) {
     if (
       index < 0 ||
       index >= images.length
     ) {
-      return;
+      return false;
     }
 
     if (index === curIdx && img) {
-      return;
+      return true;
     }
 
     if (dirty) {
       if (document.getElementById("autoSave").checked) {
-        await save();
+        const saved = await save();
+
+        if (!saved) {
+          return false;
+        }
       } else {
         const confirmed = confirm(
           "当前图片有未保存的修改，切换将丢失。确定切换？"
         );
 
         if (!confirmed) {
-          return;
+          return false;
         }
       }
     }
@@ -987,25 +1648,37 @@
 
     shapes = [];
     history = [];
+
     selectedIdx = -1;
+
     drawing = [];
     drawStart = null;
     drag = null;
+
+    hover = {
+      shape: -1,
+      handle: null,
+      edge: null
+    };
+
     dirty = false;
 
-    const name = images[index];
+    imgW = 0;
+    imgH = 0;
 
-    /*
-     * 【修复 3】记录本次加载的序号，并使用局部变量 im，
-     * 避免回调中引用被后续 openImage 覆盖的全局 img。
-     */
+    const name = images[index];
     const seq = ++loadSeq;
 
     const im = new Image();
     img = im;
 
+    refreshShapeList();
+    refreshLabelList();
+    refreshFileList();
+    updateStatus();
+    render();
+
     im.onload = async function () {
-      // 已经切到别的图了，丢弃本次结果
       if (seq !== loadSeq) {
         return;
       }
@@ -1014,26 +1687,50 @@
       imgH = im.naturalHeight;
 
       fitView();
+      render();
+      updateStatus();
 
       try {
+        const params = new URLSearchParams();
+
+        params.set("image", name);
+
+        if (currentUser) {
+          params.set("user", currentUser);
+        }
+
         const response = await fetch(
-          "./api/annotation?image=" +
-          encodeURIComponent(name)
+          "./api/annotation?" + params.toString()
         );
 
-        const data = await response.json();
+        const data = await response.json().catch(() => ({}));
 
-        // fetch 期间可能又切换了图片，再判断一次
+        if (!response.ok) {
+          throw new Error(
+            data.message ||
+            data.error ||
+            "加载标注失败"
+          );
+        }
+
         if (seq !== loadSeq) {
           return;
         }
 
-        shapes = (data.shapes || []).map(shape => ({
-          label: shape.label,
+        shapes = (
+          Array.isArray(data.shapes)
+            ? data.shapes
+            : []
+        ).map(shape => ({
+          label: shape.label || "",
 
-          points: (shape.points || []).map(point => [
-            point[0],
-            point[1]
+          points: (
+            Array.isArray(shape.points)
+              ? shape.points
+              : []
+          ).map(point => [
+            Number(point[0]),
+            Number(point[1])
           ]),
 
           group_id: (
@@ -1042,11 +1739,11 @@
               : shape.group_id
           ),
 
-          // polyline 自动转换为标准 linestrip
-          shape_type: normalizeShapeType(shape.shape_type),
+          shape_type: normalizeShapeType(
+            shape.shape_type
+          ),
 
           flags: shape.flags || {},
-
           hidden: false
         }));
 
@@ -1056,13 +1753,22 @@
 
         if (shapes.length) {
           annotated.add(name);
+        } else {
+          annotated.delete(name);
         }
       } catch (error) {
         if (seq !== loadSeq) {
           return;
         }
 
-        flash("加载标注失败", true);
+        flash(
+          "加载标注失败: " + error.message,
+          true
+        );
+      }
+
+      if (seq !== loadSeq) {
+        return;
       }
 
       dirty = false;
@@ -1070,6 +1776,8 @@
       refreshShapeList();
       refreshLabelList();
       refreshFileList();
+
+      updateFilterSummary();
       render();
       updateStatus();
     };
@@ -1079,18 +1787,26 @@
         return;
       }
 
-      flash("图片加载失败: " + name, true);
+      flash(
+        "图片加载失败: " + name,
+        true
+      );
     };
 
-    im.src = "./images/" + encodeURIComponent(name);
+    im.src = (
+      "./images/" +
+      encodeImagePath(name)
+    );
 
-    refreshFileList();
-    updateStatus();
+    return true;
   }
 
   async function save() {
-    if (curIdx < 0) {
-      return;
+    if (
+      curIdx < 0 ||
+      curIdx >= images.length
+    ) {
+      return false;
     }
 
     const name = images[curIdx];
@@ -1113,8 +1829,9 @@
             : shape.group_id
         ),
 
-        // 保存时确保 polyline 被写成 linestrip
-        shape_type: normalizeShapeType(shape.shape_type),
+        shape_type: normalizeShapeType(
+          shape.shape_type
+        ),
 
         flags: shape.flags || {}
       })),
@@ -1134,29 +1851,58 @@
         },
 
         body: JSON.stringify({
+          user: currentUser,
           imagePath: name,
           annotation
         })
       });
 
-      if (response.ok) {
-        dirty = false;
-        annotated.add(name);
+      const result = await response.json().catch(() => ({}));
 
-        flash("已保存 " + name);
-        refreshFileList();
-        updateStatus();
-      } else {
-        flash("保存失败", true);
+      if (!response.ok) {
+        throw new Error(
+          result.message ||
+          result.error ||
+          "保存失败"
+        );
       }
+
+      dirty = false;
+
+      if (result.annotated) {
+        annotated.add(name);
+      } else {
+        annotated.delete(name);
+      }
+
+      const item = imageItems.find(
+        imageItem => imageItem.name === name
+      );
+
+      if (item) {
+        item.annotated = Boolean(result.annotated);
+      }
+
+      flash("已保存 " + name);
+
+      refreshFileList();
+      updateFilterSummary();
+      updateStatus();
+
+      return true;
     } catch (error) {
-      flash("保存失败: " + error.message, true);
+      flash(
+        "保存失败: " + error.message,
+        true
+      );
+
+      return false;
     }
   }
 
-  // ============================================================
-  // 视图
-  // ============================================================
+  /* ============================================================
+     视图
+     ============================================================ */
 
   function fitView() {
     const width = wrap.clientWidth;
@@ -1189,7 +1935,9 @@
       )
     );
 
-    const relativeFactor = newScale / view.scale;
+    const relativeFactor = (
+      newScale / view.scale
+    );
 
     view.ox = (
       canvasX -
@@ -1207,9 +1955,9 @@
     updateStatus();
   }
 
-  // ============================================================
-  // 渲染
-  // ============================================================
+  /* ============================================================
+     渲染
+     ============================================================ */
 
   function render() {
     const width = wrap.clientWidth;
@@ -1244,7 +1992,9 @@
       img.complete &&
       imgW
     ) {
-      ctx.imageSmoothingEnabled = view.scale < 3;
+      ctx.imageSmoothingEnabled = (
+        view.scale < 3
+      );
 
       ctx.drawImage(
         img,
@@ -1343,10 +2093,6 @@
         break;
       }
 
-      /*
-       * linestrip 和旧 line 都走开放路径。
-       * 不执行 closePath()。
-       */
       default: {
         const points = shape.points.map(i2c);
 
@@ -1371,10 +2117,6 @@
 
     pathShape(shape);
 
-    /*
-     * line 和 linestrip 都是开放线条，
-     * 不进行内部填充。
-     */
     if (
       shape.shape_type !== "line" &&
       shape.shape_type !== "linestrip"
@@ -1391,40 +2133,40 @@
     ctx.strokeStyle = color;
     ctx.stroke();
 
-    // 绘制顶点
-    getHandles(shape).forEach((point, handleIndex) => {
-      const canvasPoint = i2c(point);
+    getHandles(shape).forEach(
+      (point, handleIndex) => {
+        const canvasPoint = i2c(point);
 
-      const isHovered = (
-        hover.handle &&
-        hover.handle.si === index &&
-        hover.handle.hi === handleIndex
-      );
+        const isHovered = (
+          hover.handle &&
+          hover.handle.si === index &&
+          hover.handle.hi === handleIndex
+        );
 
-      ctx.beginPath();
+        ctx.beginPath();
 
-      ctx.arc(
-        canvasPoint[0],
-        canvasPoint[1],
-        isHovered
-          ? 6
-          : (index === selectedIdx ? 5 : 3.5),
-        0,
-        Math.PI * 2
-      );
+        ctx.arc(
+          canvasPoint[0],
+          canvasPoint[1],
+          isHovered
+            ? 6
+            : (index === selectedIdx ? 5 : 3.5),
+          0,
+          Math.PI * 2
+        );
 
-      ctx.fillStyle = isHovered
-        ? "#fff"
-        : color;
+        ctx.fillStyle = isHovered
+          ? "#fff"
+          : color;
 
-      ctx.fill();
+        ctx.fill();
 
-      ctx.lineWidth = 1.5;
-      ctx.strokeStyle = "#fff";
-      ctx.stroke();
-    });
+        ctx.lineWidth = 1.5;
+        ctx.strokeStyle = "#fff";
+        ctx.stroke();
+      }
+    );
 
-    // 边插入提示
     if (
       hover.edge &&
       hover.edge.si === index &&
@@ -1450,7 +2192,6 @@
       ctx.stroke();
     }
 
-    // 标签文字
     if (!shape.points.length) {
       return;
     }
@@ -1489,11 +2230,11 @@
   }
 
   function drawPreview() {
-    /*
-     * 多边形和折线共用连续点击预览。
-     */
     if (
-      (mode === "polygon" || mode === "linestrip") &&
+      (
+        mode === "polygon" ||
+        mode === "linestrip"
+      ) &&
       drawing.length
     ) {
       const points = drawing.map(i2c);
@@ -1508,7 +2249,6 @@
         }
       });
 
-      // 当前最后一个点连接鼠标位置
       if (mouse) {
         ctx.lineTo(
           mouse[0],
@@ -1520,7 +2260,6 @@
       ctx.lineWidth = 2;
       ctx.stroke();
 
-      // 绘制已经确定的顶点
       points.forEach(point => {
         ctx.beginPath();
 
@@ -1536,15 +2275,12 @@
         ctx.fill();
       });
 
-      /*
-       * 只有 polygon 才显示起点闭合提示。
-       * linestrip 不允许点击起点闭合。
-       */
       if (
         mode === "polygon" &&
         drawing.length >= 3 &&
         mouseImg &&
-        dist(mouseImg, drawing[0]) < 8 / view.scale
+        dist(mouseImg, drawing[0]) <
+          8 / view.scale
       ) {
         ctx.beginPath();
 
@@ -1562,7 +2298,6 @@
       }
     }
 
-    // 矩形、圆的两点预览
     if (
       drawStart &&
       mouseImg
@@ -1587,7 +2322,8 @@
         ctx.arc(
           a[0],
           a[1],
-          dist(drawStart, mouseImg) * view.scale,
+          dist(drawStart, mouseImg) *
+            view.scale,
           0,
           Math.PI * 2
         );
@@ -1621,9 +2357,9 @@
     ctx.stroke();
   }
 
-  // ============================================================
-  // 图形创建
-  // ============================================================
+  /* ============================================================
+     图形创建
+     ============================================================ */
 
   function createShape(type, points) {
     showLabelDialog(lastLabel, null).then(result => {
@@ -1648,27 +2384,31 @@
       selectedIdx = shapes.length - 1;
 
       markDirty();
+
       refreshShapeList();
       refreshLabelList();
+
       render();
     });
   }
 
-  /*
-   * 完成多点图形。
-   *
-   * polygon 至少需要 3 个点。
-   * linestrip 至少需要 2 个点。
-   */
   function finishMultiPoint() {
     if (mode === "polygon") {
       if (drawing.length < 3) {
-        flash("多边形至少需要 3 个点", true);
+        flash(
+          "多边形至少需要 3 个点",
+          true
+        );
+
         return false;
       }
     } else if (mode === "linestrip") {
       if (drawing.length < 2) {
-        flash("折线至少需要 2 个点", true);
+        flash(
+          "折线至少需要 2 个点",
+          true
+        );
+
         return false;
       }
     } else {
@@ -1676,7 +2416,10 @@
     }
 
     const type = mode;
-    const points = drawing.map(point => point.slice());
+
+    const points = drawing.map(
+      point => point.slice()
+    );
 
     drawing = [];
 
@@ -1685,16 +2428,13 @@
     return true;
   }
 
-  /*
-   * 完成矩形或圆。
-   * 原来的 line 创建逻辑已删除。
-   */
   function finishTwoPoint(secondPoint) {
     if (!drawStart) {
       return;
     }
 
     const firstPoint = drawStart;
+
     drawStart = null;
 
     if (mode === "rectangle") {
@@ -1742,8 +2482,10 @@
     selectedIdx = -1;
 
     markDirty();
+
     refreshShapeList();
     refreshLabelList();
+
     render();
   }
 
@@ -1767,16 +2509,20 @@
       shape.label = result.label;
       shape.group_id = result.group;
 
+      getColor(shape.label);
+
       markDirty();
+
       refreshShapeList();
       refreshLabelList();
+
       render();
     });
   }
 
-  // ============================================================
-  // 鼠标事件
-  // ============================================================
+  /* ============================================================
+     鼠标事件
+     ============================================================ */
 
   cv.addEventListener("contextmenu", event => {
     event.preventDefault();
@@ -1785,15 +2531,9 @@
   cv.addEventListener("mousedown", event => {
     const x = event.offsetX;
     const y = event.offsetY;
+
     const imagePoint = c2i(x, y);
 
-    /*
-     * 右键、中键或按住空格：
-     * 默认用于平移。
-     *
-     * 但是在 polygon / linestrip 绘制过程中，
-     * 右键优先删除最后一个节点。
-     */
     if (
       event.button === 2 ||
       event.button === 1 ||
@@ -1801,7 +2541,10 @@
     ) {
       if (
         event.button === 2 &&
-        (mode === "polygon" || mode === "linestrip") &&
+        (
+          mode === "polygon" ||
+          mode === "linestrip"
+        ) &&
         drawing.length
       ) {
         drawing.pop();
@@ -1818,34 +2561,29 @@
       };
 
       cv.style.cursor = "grabbing";
+
       return;
     }
 
     if (
       event.button !== 0 ||
-      !img
+      !img ||
+      !imgW
     ) {
       return;
     }
 
     const threshold = 8 / view.scale;
 
-    /*
-     * 多边形和折线：
-     * 左键单击连续添加节点。
-     */
     if (
       mode === "polygon" ||
       mode === "linestrip"
     ) {
-      /*
-       * 只有多边形可以通过点击第一个点闭合。
-       * 折线不会闭合。
-       */
       if (
         mode === "polygon" &&
         drawing.length >= 3 &&
-        dist(imagePoint, drawing[0]) < threshold
+        dist(imagePoint, drawing[0]) <
+          threshold
       ) {
         finishMultiPoint();
       } else {
@@ -1858,10 +2596,6 @@
       return;
     }
 
-    /*
-     * 矩形和圆：
-     * 支持两次点击或鼠标拖动。
-     */
     if (
       mode === "rectangle" ||
       mode === "circle"
@@ -1886,10 +2620,6 @@
 
       return;
     }
-
-    // ----------------------------------------------------------
-    // 编辑模式
-    // ----------------------------------------------------------
 
     const handle = findHandle(
       imagePoint,
@@ -1938,6 +2668,7 @@
 
       render();
       refreshShapeList();
+
       return;
     }
 
@@ -1964,6 +2695,7 @@
 
       markDirty();
       render();
+
       return;
     }
 
@@ -2033,13 +2765,20 @@
         if (shape) {
           drag.moved = true;
 
-          const dx = mouseImg[0] - drag.last[0];
-          const dy = mouseImg[1] - drag.last[1];
+          const dx = (
+            mouseImg[0] - drag.last[0]
+          );
 
-          shape.points = shape.points.map(point => [
-            point[0] + dx,
-            point[1] + dy
-          ]);
+          const dy = (
+            mouseImg[1] - drag.last[1]
+          );
+
+          shape.points = shape.points.map(
+            point => [
+              point[0] + dx,
+              point[1] + dy
+            ]
+          );
 
           drag.last = mouseImg;
 
@@ -2049,12 +2788,14 @@
 
       render();
       updateStatus();
+
       return;
     }
 
     if (
       mode === "edit" &&
-      img
+      img &&
+      imgW
     ) {
       hover.handle = findHandle(
         mouseImg,
@@ -2118,14 +2859,11 @@
       }
 
       drag = null;
+
       render();
       return;
     }
 
-    /*
-     * 支持拖拽方式画矩形和圆。
-     * linestrip 不使用拖拽完成。
-     */
     if (
       drawStart &&
       mouseImg &&
@@ -2136,8 +2874,7 @@
     ) {
       if (
         dist(drawStart, mouseImg) *
-        view.scale >
-        5
+        view.scale > 5
       ) {
         finishTwoPoint(
           clampPt(mouseImg)
@@ -2148,19 +2885,11 @@
     }
   });
 
-  /*
-   * 双击完成 polygon 或 linestrip。
-   */
   cv.addEventListener("dblclick", event => {
     if (
       mode === "polygon" ||
       mode === "linestrip"
     ) {
-      /*
-       * dblclick 之前浏览器会触发第二次 mousedown，
-       * 因而可能连续加入两个相同的最后节点。
-       * 这里删除重复节点。
-       */
       while (
         drawing.length > 1 &&
         dist(
@@ -2173,6 +2902,7 @@
 
       finishMultiPoint();
       render();
+
       return;
     }
 
@@ -2211,30 +2941,30 @@
     }
   );
 
-  // ============================================================
-  // 键盘事件
-  // ============================================================
+  /* ============================================================
+     键盘事件
+     ============================================================ */
 
   document.addEventListener("keydown", event => {
     if (modal.style.display !== "none") {
       return;
     }
 
-    /*
-     * 【修复 1】只拦截"真正需要打字的输入框"。
-     *
-     * 原来的写法拦截了所有 INPUT，
-     * 导致点击 checkbox（自动保存、标注列表的可见性开关）之后，
-     * 焦点留在 checkbox 上，A / D 等快捷键全部失效。
-     */
-    const t = event.target;
+    const target = event.target;
 
-    const isTypingTarget =
-      t.tagName === "TEXTAREA" ||
+    const isTypingTarget = (
+      target.tagName === "TEXTAREA" ||
+      target.tagName === "SELECT" ||
       (
-        t.tagName === "INPUT" &&
-        !["checkbox", "radio", "range", "button"].includes(t.type)
-      );
+        target.tagName === "INPUT" &&
+        ![
+          "checkbox",
+          "radio",
+          "range",
+          "button"
+        ].includes(target.type)
+      )
+    );
 
     if (isTypingTarget) {
       return;
@@ -2243,6 +2973,7 @@
     if (event.code === "Space") {
       spaceDown = true;
       event.preventDefault();
+
       return;
     }
 
@@ -2252,6 +2983,7 @@
     ) {
       event.preventDefault();
       save();
+
       return;
     }
 
@@ -2261,6 +2993,7 @@
     ) {
       event.preventDefault();
       undo();
+
       return;
     }
 
@@ -2295,10 +3028,6 @@
         setMode("circle");
         break;
 
-      /*
-       * 原来的 L 线段快捷键，
-       * 现在改为 linestrip 折线。
-       */
       case "l":
       case "L":
         setMode("linestrip");
@@ -2316,18 +3045,17 @@
         updateStatus();
         break;
 
-      /*
-       * Enter 完成多边形或折线。
-       */
       case "Enter":
         if (
           mode === "polygon" ||
           mode === "linestrip"
         ) {
           event.preventDefault();
+
           finishMultiPoint();
           render();
         }
+
         break;
 
       case "Escape":
@@ -2343,10 +3071,6 @@
         deleteSelected();
         break;
 
-      /*
-       * 绘制 polygon / linestrip 时，
-       * Backspace 删除最后一个待创建节点。
-       */
       case "Backspace":
         event.preventDefault();
 
@@ -2390,6 +3114,17 @@
     }
   });
 
+  window.addEventListener("blur", () => {
+    spaceDown = false;
+
+    if (
+      drag &&
+      drag.type === "pan"
+    ) {
+      drag = null;
+    }
+  });
+
   window.addEventListener("beforeunload", event => {
     if (dirty) {
       event.preventDefault();
@@ -2397,9 +3132,9 @@
     }
   });
 
-  // ============================================================
-  // 模式切换
-  // ============================================================
+  /* ============================================================
+     模式切换
+     ============================================================ */
 
   function setMode(newMode) {
     mode = newMode;
@@ -2428,13 +3163,16 @@
       });
     });
 
-  // ============================================================
-  // 标签对话框
-  // ============================================================
+  /* ============================================================
+     标签对话框
+     ============================================================ */
 
   let modalResolve = null;
 
-  function showLabelDialog(defaultLabel, defaultGroup) {
+  function showLabelDialog(
+    defaultLabel,
+    defaultGroup
+  ) {
     return new Promise(resolve => {
       modalResolve = resolve;
 
@@ -2446,14 +3184,20 @@
           : defaultGroup
       );
 
-      const options = document.getElementById("labelOptions");
-      const quickLabels = document.getElementById("quickLabels");
+      const options = document.getElementById(
+        "labelOptions"
+      );
+
+      const quickLabels = document.getElementById(
+        "quickLabels"
+      );
 
       options.innerHTML = "";
       quickLabels.innerHTML = "";
 
       Object.keys(labelColors).forEach(label => {
         const option = document.createElement("option");
+
         option.value = label;
         options.appendChild(option);
 
@@ -2484,6 +3228,7 @@
     modal.style.display = "none";
 
     const resolve = modalResolve;
+
     modalResolve = null;
 
     if (resolve) {
@@ -2501,14 +3246,20 @@
 
     const groupValue = groupInput.value.trim();
 
+    let group = null;
+
+    if (groupValue !== "") {
+      group = parseInt(groupValue, 10);
+
+      if (!Number.isFinite(group)) {
+        groupInput.focus();
+        return;
+      }
+    }
+
     closeModal({
       label,
-
-      group: (
-        groupValue === ""
-          ? null
-          : parseInt(groupValue, 10)
-      )
+      group
     });
   };
 
@@ -2520,7 +3271,10 @@
     element.addEventListener("keydown", event => {
       if (event.key === "Enter") {
         event.preventDefault();
-        document.getElementById("modalOk").click();
+
+        document
+          .getElementById("modalOk")
+          .click();
       }
 
       if (event.key === "Escape") {
@@ -2530,9 +3284,9 @@
     });
   });
 
-  // ============================================================
-  // 侧边栏
-  // ============================================================
+  /* ============================================================
+     侧边栏
+     ============================================================ */
 
   function refreshShapeList() {
     const list = document.getElementById("shapeList");
@@ -2556,8 +3310,6 @@
 
         shape.hidden = !checkbox.checked;
 
-        // 【修复 2】点击后移除焦点，避免吞掉快捷键、
-        // 以及按空格时意外 toggle 该复选框
         checkbox.blur();
 
         render();
@@ -2663,9 +3415,11 @@
 
     list.innerHTML = "";
 
-    document.getElementById("fileCount").textContent = images.length
-      ? `(${curIdx + 1}/${images.length})`
-      : "";
+    document.getElementById("fileCount").textContent = (
+      images.length
+        ? `(${curIdx >= 0 ? curIdx + 1 : 0}/${images.length})`
+        : "(0)"
+    );
 
     images.forEach((name, index) => {
       const item = document.createElement("li");
@@ -2679,7 +3433,7 @@
       mark.className = "annotated-mark";
       mark.textContent = annotated.has(name)
         ? "✓"
-        : "　";
+        : "";
 
       const text = document.createElement("span");
 
@@ -2704,11 +3458,20 @@
         });
       }
     });
+
+    document.getElementById("btnPrev").disabled = (
+      curIdx <= 0
+    );
+
+    document.getElementById("btnNext").disabled = (
+      curIdx < 0 ||
+      curIdx >= images.length - 1
+    );
   }
 
-  // ============================================================
-  // 状态栏与消息提示
-  // ============================================================
+  /* ============================================================
+     状态栏与提示
+     ============================================================ */
 
   const MODE_NAMES = {
     edit: "编辑",
@@ -2720,31 +3483,51 @@
   };
 
   function updateStatus() {
+    const name = getCurrentImageName();
+
     document.getElementById("stFile").textContent = (
-      curIdx >= 0
-        ? `${images[curIdx]}  (${imgW}×${imgH})`
+      name
+        ? `${name}  (${imgW}×${imgH})`
         : "未加载"
     );
+
+    document.getElementById("stFile").title = name || "";
 
     document.getElementById("stZoom").textContent = (
       `缩放: ${Math.round(view.scale * 100)}%`
     );
 
-    document.getElementById("stPos").textContent = mouseImg
-      ? (
-        `坐标: (` +
-        `${Math.round(mouseImg[0])}, ` +
-        `${Math.round(mouseImg[1])})`
-      )
-      : "";
+    document.getElementById("stPos").textContent = (
+      mouseImg && img
+        ? (
+          `坐标: (` +
+          `${Math.round(mouseImg[0])}, ` +
+          `${Math.round(mouseImg[1])})`
+        )
+        : ""
+    );
 
     document.getElementById("stMode").textContent = (
       `模式: ${MODE_NAMES[mode] || mode}`
     );
 
-    document.getElementById("stDirty").textContent = dirty
-      ? "● 未保存"
-      : "";
+    document.getElementById("stDirty").textContent = (
+      dirty
+        ? "● 未保存"
+        : ""
+    );
+
+    document.getElementById("btnSave").disabled = (
+      curIdx < 0
+    );
+
+    document.getElementById("btnUndo").disabled = (
+      history.length === 0
+    );
+
+    document.getElementById("btnDel").disabled = (
+      selectedIdx < 0
+    );
   }
 
   let toastTimer = null;
@@ -2753,6 +3536,7 @@
     const toast = document.getElementById("toast");
 
     toast.textContent = message;
+
     toast.className = isError
       ? "err"
       : "";
@@ -2763,28 +3547,175 @@
 
     toastTimer = setTimeout(() => {
       toast.style.display = "none";
-    }, 2000);
+    }, 2500);
   }
 
-  // ============================================================
-  // 工具栏
-  // ============================================================
+  /* ============================================================
+     用户切换
+     ============================================================ */
 
-  /*
-   * 【修复 2】点击工具栏任意按钮或复选框后移除焦点。
-   *
-   * 否则焦点留在按钮上，之后按空格 / 回车会意外地
-   * 再次触发该按钮（例如反复触发"删除"），
-   * 焦点留在复选框上则会吞掉 A / D 等快捷键。
-   */
-  document.getElementById("toolbar").addEventListener("click", event => {
-    if (
-      event.target.tagName === "BUTTON" ||
-      event.target.tagName === "INPUT"
-    ) {
-      event.target.blur();
+  document
+    .getElementById("userSelect")
+    .addEventListener("change", async function () {
+      const oldUser = currentUser;
+      const newUser = this.value;
+
+      if (newUser === oldUser) {
+        return;
+      }
+
+      if (dirty) {
+        if (document.getElementById("autoSave").checked) {
+          const saved = await save();
+
+          if (!saved) {
+            this.value = oldUser;
+            return;
+          }
+        } else {
+          const confirmed = confirm(
+            "当前图片有未保存的修改，切换用户将丢失。确定继续？"
+          );
+
+          if (!confirmed) {
+            this.value = oldUser;
+            return;
+          }
+        }
+      }
+
+      currentUser = newUser;
+      updateUserQuota();
+
+      resetCurrentImage();
+
+      try {
+        await loadImageList();
+      } catch (error) {
+        currentUser = oldUser;
+        this.value = oldUser;
+
+        updateUserQuota();
+
+        flash(
+          "切换用户失败: " + error.message,
+          true
+        );
+
+        try {
+          await loadImageList();
+        } catch (restoreError) {
+          flash(
+            "恢复用户任务失败: " +
+            restoreError.message,
+            true
+          );
+        }
+      }
+
+      this.blur();
+    });
+
+  /* ============================================================
+     筛选按钮
+     ============================================================ */
+
+  document.getElementById("folderAll").onclick = async function () {
+    const previous = new Set(selectedFolders);
+
+    selectedFolders = new Set(
+      getAvailableFolders()
+    );
+
+    renderFolderFilters();
+
+    const success = await applyImageFilters();
+
+    if (!success) {
+      selectedFolders = previous;
+      renderFolderFilters();
+      updateFilterSummary();
     }
-  });
+
+    this.blur();
+  };
+
+  document.getElementById("folderNone").onclick = async function () {
+    const previous = new Set(selectedFolders);
+
+    selectedFolders.clear();
+
+    renderFolderFilters();
+
+    const success = await applyImageFilters();
+
+    if (!success) {
+      selectedFolders = previous;
+      renderFolderFilters();
+      updateFilterSummary();
+    }
+
+    this.blur();
+  };
+
+  document.getElementById("groupAll").onclick = async function () {
+    const previous = new Set(
+      selectedFilenameGroups
+    );
+
+    selectedFilenameGroups = new Set(
+      serverConfig.filenameGroups.map(
+        group => group.id
+      )
+    );
+
+    renderFilenameGroupFilters();
+
+    const success = await applyImageFilters();
+
+    if (!success) {
+      selectedFilenameGroups = previous;
+      renderFilenameGroupFilters();
+      updateFilterSummary();
+    }
+
+    this.blur();
+  };
+
+  document.getElementById("groupNone").onclick = async function () {
+    const previous = new Set(
+      selectedFilenameGroups
+    );
+
+    selectedFilenameGroups.clear();
+
+    renderFilenameGroupFilters();
+
+    const success = await applyImageFilters();
+
+    if (!success) {
+      selectedFilenameGroups = previous;
+      renderFilenameGroupFilters();
+      updateFilterSummary();
+    }
+
+    this.blur();
+  };
+
+  /* ============================================================
+     工具栏
+     ============================================================ */
+
+  document
+    .getElementById("toolbar")
+    .addEventListener("click", event => {
+      if (
+        event.target.tagName === "BUTTON" ||
+        event.target.tagName === "INPUT"
+      ) {
+        event.target.blur();
+      }
+    });
 
   document.getElementById("btnPrev").onclick = function () {
     openImage(curIdx - 1);
@@ -2842,18 +3773,42 @@
     updateStatus();
   };
 
-  // ============================================================
-  // 启动
-  // ============================================================
+  /* ============================================================
+     启动
+     ============================================================ */
 
   new ResizeObserver(() => {
     render();
   }).observe(wrap);
 
-  setMode("edit");
-  loadImageList();
+  async function startApplication() {
+    setMode("edit");
+
+    refreshShapeList();
+    refreshLabelList();
+    refreshFileList();
+
+    updateStatus();
+
+    try {
+      await loadServerConfig();
+      await loadImageList();
+    } catch (error) {
+      document.getElementById("filterSummary").textContent = (
+        "加载失败"
+      );
+
+      flash(
+        "启动失败: " + error.message,
+        true
+      );
+    }
+  }
+
+  startApplication();
 
 })();
 </script>
+
 </body>
 </html>
