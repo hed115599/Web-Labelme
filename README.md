@@ -12,6 +12,7 @@
 * **状态实时同步**：支持后台实时检测数据的标注状态（已标注/未标注），防止重复标注。
 * **单目录管理**：图片与 `.json` 标签存储在同一个文件夹内，方便管理、打包与迁移。
 * **灵活启动**：支持命令行参数自定义标注数据路径以及服务端口。
+* **任务分配**：支持分配任务给不同用户
 ![项目截图](./screenshot.png)
 
 ---
@@ -24,6 +25,10 @@ pip install Flask Pillow
 ### 启动服务
 ```bash
 python app.py --data-dir /path/to/your/dataset --port 5000
+```
+或者分配不同任务给不同用户
+```bash
+python app.py --data-dir /path/to/your/dataset --port 5000 --user-quotas '{"user1":100,"user2":150,"user3":80}'
 ```
 
 ### 开始标注
