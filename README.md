@@ -17,6 +17,11 @@
 
 ---
 ## 快速开始
+### 下载代码
+```bash
+git clone https://github.com/hed115599/Web-Labelme.git
+```
+
 ### 安装环境
 ```bash
 pip install Flask Pillow
