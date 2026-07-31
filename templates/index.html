@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<title>Web Labelme</title>
+<title>Web Labelme V1.3</title>
 
 <style>
   * {
@@ -323,6 +323,13 @@
     line-height: 1.5;
   }
 
+  #dataDirPath {
+    color: #999;
+    font-size: 11px;
+    line-height: 1.5;
+    word-break: break-all;
+  }
+
   /* ==========================================================
      状态栏
      ========================================================== */
@@ -443,6 +450,58 @@
   }
 
   /* ==========================================================
+     文件夹选择对话框
+     ========================================================== */
+
+  .dir-box {
+    width: 440px;
+  }
+
+  #dirInfo {
+    color: #999;
+    font-size: 11px;
+    margin-bottom: 6px;
+    word-break: break-all;
+  }
+
+  #dirList {
+    list-style: none;
+    margin: 0 0 10px;
+    padding: 0;
+    height: 240px;
+    overflow-y: auto;
+    border: 1px solid #444;
+    border-radius: 4px;
+    background: #1e1e1e;
+  }
+
+  #dirList li {
+    padding: 5px 8px;
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    user-select: none;
+  }
+
+  #dirList li:hover {
+    background: #333;
+  }
+
+  #dirList li.dir-up {
+    color: #9cdcfe;
+  }
+
+  #dirList li.dir-empty {
+    color: #777;
+    cursor: default;
+  }
+
+  #dirList li.dir-empty:hover {
+    background: none;
+  }
+
+  /* ==========================================================
      消息提示
      ========================================================== */
 
@@ -537,6 +596,10 @@
     <button id="btnZoomOut" title="缩小 (-)">－</button>
     <button id="btnFit" title="适应窗口 (F)">适应</button>
     <button id="btnOrig" title="原始大小">1:1</button>
+
+    <div class="sep"></div>
+
+    <button id="btnFolder" title="选择标注文件夹">📁 文件夹</button>
   </div>
 
   <!-- 主区域 -->
@@ -551,6 +614,16 @@
       <!-- 任务筛选 -->
       <div class="panel" id="filterPanel">
         <h3>任务筛选</h3>
+
+        <div class="filter-section" id="dataDirSection">
+          <div class="filter-title">
+            <span>数据目录</span>
+            <span class="spacer"></span>
+            <button type="button" id="btnChangeDir">更改</button>
+          </div>
+
+          <div id="dataDirPath"></div>
+        </div>
 
         <div class="filter-section" id="userSection">
           <div class="filter-title">当前用户</div>
@@ -652,6 +725,28 @@
   </div>
 </div>
 
+<!-- 文件夹选择对话框 -->
+<div id="dirModal" class="modal-mask" style="display:none">
+  <div class="modal-box dir-box">
+    <h3>选择标注文件夹</h3>
+
+    <input
+      id="dirInput"
+      placeholder="输入文件夹路径，或在下方点击浏览"
+      autocomplete="off"
+    >
+
+    <div id="dirInfo"></div>
+
+    <ul id="dirList"></ul>
+
+    <div class="modal-btns">
+      <button id="dirCancel">取消</button>
+      <button id="dirOk" class="primary">使用此文件夹</button>
+    </div>
+  </div>
+</div>
+
 <div id="toast"></div>
 
 <script>
@@ -666,6 +761,9 @@
   const labelInput = document.getElementById("labelInput");
   const groupInput = document.getElementById("groupInput");
 
+  const dirModal = document.getElementById("dirModal");
+  const dirInput = document.getElementById("dirInput");
+
   /* ============================================================
      状态
      ============================================================ */
@@ -674,7 +772,8 @@
     users: [],
     defaultUser: null,
     filenameGroups: [],
-    assignmentEnabled: false
+    assignmentEnabled: false,
+    dataDir: ""
   };
 
   /*
@@ -855,6 +954,22 @@
 
     render();
     updateStatus();
+  }
+
+  /*
+   * 存在未保存修改时，先尝试自动保存或让用户确认。
+   * 返回 true 表示可以继续后续操作。
+   */
+  async function confirmDiscardDirty(message) {
+    if (!dirty) {
+      return true;
+    }
+
+    if (document.getElementById("autoSave").checked) {
+      return await save();
+    }
+
+    return confirm(message);
   }
 
   /* ============================================================
@@ -1224,6 +1339,13 @@
      服务端配置与图片列表
      ============================================================ */
 
+  function updateDataDirDisplay() {
+    const element = document.getElementById("dataDirPath");
+
+    element.textContent = serverConfig.dataDir || "-";
+    element.title = serverConfig.dataDir || "";
+  }
+
   async function loadServerConfig() {
     const response = await fetch("./api/config");
 
@@ -1244,7 +1366,9 @@
         ? data.filenameGroups
         : [],
 
-      assignmentEnabled: Boolean(data.assignmentEnabled)
+      assignmentEnabled: Boolean(data.assignmentEnabled),
+
+      dataDir: data.dataDir || ""
     };
 
     const userSection = document.getElementById("userSection");
@@ -1282,6 +1406,7 @@
     );
 
     updateUserQuota();
+    updateDataDirDisplay();
   }
 
   function updateUserQuota() {
@@ -1363,6 +1488,198 @@
     renderFilenameGroupFilters();
     updateFilterSummary();
   }
+
+  /* ============================================================
+     数据目录选择
+     ============================================================ */
+
+  async function browseTo(path) {
+    const params = new URLSearchParams();
+
+    if (path) {
+      params.set("path", path);
+    }
+
+    const response = await fetch(
+      "./api/browse?" + params.toString()
+    );
+
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      throw new Error(
+        data.message ||
+        data.error ||
+        "浏览目录失败"
+      );
+    }
+
+    dirInput.value = data.path;
+
+    document.getElementById("dirInfo").textContent = (
+      `当前目录直接包含 ${data.imageCount} 张图片` +
+      `（不含子目录）` +
+      (data.isCurrentDataDir ? " · 正在使用" : "")
+    );
+
+    const list = document.getElementById("dirList");
+
+    list.innerHTML = "";
+
+    if (data.parent) {
+      const item = document.createElement("li");
+
+      item.className = "dir-up";
+      item.textContent = "⬆ .. 上级目录";
+      item.title = data.parent;
+
+      item.onclick = function () {
+        browseTo(data.parent).catch(error => {
+          flash(
+            "浏览目录失败: " + error.message,
+            true
+          );
+        });
+      };
+
+      list.appendChild(item);
+    }
+
+    const directories = Array.isArray(data.directories)
+      ? data.directories
+      : [];
+
+    if (!directories.length) {
+      const item = document.createElement("li");
+
+      item.className = "dir-empty";
+      item.textContent = "（没有子文件夹）";
+
+      list.appendChild(item);
+    }
+
+    directories.forEach(directory => {
+      const item = document.createElement("li");
+
+      item.textContent = "📁 " + directory.name;
+      item.title = directory.path;
+
+      item.onclick = function () {
+        browseTo(directory.path).catch(error => {
+          flash(
+            "浏览目录失败: " + error.message,
+            true
+          );
+        });
+      };
+
+      list.appendChild(item);
+    });
+  }
+
+  function openDirModal() {
+    dirModal.style.display = "flex";
+
+    browseTo(serverConfig.dataDir || "").catch(error => {
+      flash(
+        "浏览目录失败: " + error.message,
+        true
+      );
+    });
+
+    setTimeout(() => {
+      dirInput.focus();
+      dirInput.select();
+    }, 0);
+  }
+
+  function closeDirModal() {
+    dirModal.style.display = "none";
+  }
+
+  async function applyDataDir(path) {
+    if (!path) {
+      dirInput.focus();
+      return;
+    }
+
+    const ok = await confirmDiscardDirty(
+      "当前图片有未保存的修改，切换文件夹将丢失。确定继续？"
+    );
+
+    if (!ok) {
+      return;
+    }
+
+    const response = await fetch("./api/data-dir", {
+      method: "POST",
+
+      headers: {
+        "Content-Type": "application/json"
+      },
+
+      body: JSON.stringify({
+        path
+      })
+    });
+
+    const result = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      throw new Error(
+        result.message ||
+        result.error ||
+        "切换文件夹失败"
+      );
+    }
+
+    closeDirModal();
+    resetCurrentImage();
+
+    await loadServerConfig();
+    await loadImageList();
+
+    flash(
+      `已切换到 ${result.dataDir}` +
+      `（共 ${result.imageCount} 张图片）`
+    );
+  }
+
+  document.getElementById("btnFolder").onclick = function () {
+    openDirModal();
+    this.blur();
+  };
+
+  document.getElementById("btnChangeDir").onclick = function () {
+    openDirModal();
+    this.blur();
+  };
+
+  document.getElementById("dirCancel").onclick = function () {
+    closeDirModal();
+  };
+
+  document.getElementById("dirOk").onclick = function () {
+    applyDataDir(dirInput.value.trim()).catch(error => {
+      flash(
+        "切换文件夹失败: " + error.message,
+        true
+      );
+    });
+  };
+
+  dirInput.addEventListener("keydown", event => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+
+      document.getElementById("dirOk").click();
+    }
+
+    if (event.key === "Escape") {
+      event.preventDefault();
+      closeDirModal();
+    }
+  });
 
   /* ============================================================
      筛选面板
@@ -2946,6 +3263,14 @@
      ============================================================ */
 
   document.addEventListener("keydown", event => {
+    if (dirModal.style.display !== "none") {
+      if (event.key === "Escape") {
+        closeDirModal();
+      }
+
+      return;
+    }
+
     if (modal.style.display !== "none") {
       return;
     }
@@ -3809,6 +4134,5 @@
 
 })();
 </script>
-
 </body>
 </html>
