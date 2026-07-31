@@ -58,7 +58,9 @@ IMAGE_SUFFIXES = {
     ".webp"
 }
 IGNORED_DIRECTORY_NAMES = {
-    ".ipynb_checkpoints"
+    ".ipynb_checkpoints",
+    "#recycle",
+    "$recycle.bin"
 }
 
 
