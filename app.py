@@ -6,6 +6,7 @@ import json
 import os
 import random
 import tempfile
+import threading
 
 
 app = Flask(__name__)
@@ -14,6 +15,12 @@ BASE_DIR = Path(__file__).resolve().parent
 DEFAULT_DATA_DIR = BASE_DIR / "data" / "images"
 
 DATA_DIR = DEFAULT_DATA_DIR
+
+# 切换数据目录时使用的锁
+DATA_DIR_LOCK = threading.Lock()
+
+# 限制可选择的目录范围，None 表示不限制
+BROWSE_ROOT = None
 
 # 示例：
 # {
@@ -36,6 +43,11 @@ USER_QUOTAS = {}
 USER_ASSIGNMENTS = {}
 
 ASSIGNMENT_FILE = None
+
+# 是否由命令行显式指定了分配文件。
+# 未显式指定时，切换数据目录后分配文件跟随新目录。
+ASSIGNMENT_FILE_EXPLICIT = False
+
 ASSIGNMENT_SEED = 12345
 
 IMAGE_SUFFIXES = {
@@ -452,6 +464,45 @@ def build_user_assignments(image_names):
         )
 
 
+def get_default_assignment_file(data_dir):
+    return data_dir / ".web_labelme_assignments.json"
+
+
+def is_within_browse_root(path):
+    """
+    检查路径是否在允许浏览/选择的范围内。
+
+    BROWSE_ROOT 为 None 时不做限制。
+    """
+    if BROWSE_ROOT is None:
+        return True
+
+    try:
+        Path(path).resolve().relative_to(BROWSE_ROOT)
+        return True
+    except (ValueError, OSError):
+        return False
+
+
+def switch_data_dir(new_dir):
+    """
+    切换数据目录，重新扫描图片并重建用户分配。
+
+    返回新目录下扫描到的图片列表。
+    """
+    global DATA_DIR, ASSIGNMENT_FILE
+
+    DATA_DIR = new_dir
+
+    if not ASSIGNMENT_FILE_EXPLICIT:
+        ASSIGNMENT_FILE = get_default_assignment_file(new_dir)
+
+    images = scan_images()
+    build_user_assignments(images)
+
+    return images
+
+
 def get_request_user(data=None):
     """
     用户可以通过以下方式传入：
@@ -536,7 +587,153 @@ def get_config():
         "users": users,
         "defaultUser": users[0]["name"] if users else None,
         "filenameGroups": filename_groups,
-        "assignmentEnabled": bool(USER_QUOTAS)
+        "assignmentEnabled": bool(USER_QUOTAS),
+        "dataDir": str(DATA_DIR)
+    })
+
+
+@app.route("/api/data-dir", methods=["GET"])
+def get_data_dir():
+    return jsonify({
+        "dataDir": str(DATA_DIR),
+        "browseRoot": str(BROWSE_ROOT) if BROWSE_ROOT else None
+    })
+
+
+@app.route("/api/data-dir", methods=["POST"])
+def set_data_dir():
+    """
+    切换标注目录。
+
+    请求体：
+    {
+        "path": "/path/to/images"
+    }
+    """
+    data = request.get_json(silent=True)
+
+    if not isinstance(data, dict):
+        return jsonify({
+            "error": "invalid json"
+        }), 400
+
+    raw_path = str(data.get("path", "")).strip()
+
+    if not raw_path:
+        return jsonify({
+            "error": "missing path",
+            "message": "缺少 path 参数"
+        }), 400
+
+    try:
+        new_dir = Path(raw_path).expanduser().resolve()
+    except (OSError, RuntimeError) as error:
+        return jsonify({
+            "error": "invalid path",
+            "message": f"无效路径: {error}"
+        }), 400
+
+    if not new_dir.exists() or not new_dir.is_dir():
+        return jsonify({
+            "error": "not a directory",
+            "message": f"路径不存在或不是文件夹: {new_dir}"
+        }), 400
+
+    if not is_within_browse_root(new_dir):
+        return jsonify({
+            "error": "path not allowed",
+            "message": f"该路径不在允许范围内: {new_dir}"
+        }), 403
+
+    with DATA_DIR_LOCK:
+        try:
+            images = switch_data_dir(new_dir)
+        except OSError as error:
+            return jsonify({
+                "error": "switch failed",
+                "message": str(error)
+            }), 500
+
+    return jsonify({
+        "success": True,
+        "dataDir": str(DATA_DIR),
+        "imageCount": len(images)
+    })
+
+
+@app.route("/api/browse", methods=["GET"])
+def browse_directories():
+    """
+    浏览服务器上的文件夹，用于前端目录选择器。
+
+    GET /api/browse?path=/some/dir
+
+    不传 path 时，返回当前数据目录。
+    """
+    raw_path = request.args.get("path", "").strip()
+
+    if raw_path:
+        try:
+            current = Path(raw_path).expanduser().resolve()
+        except (OSError, RuntimeError) as error:
+            return jsonify({
+                "error": "invalid path",
+                "message": f"无效路径: {error}"
+            }), 400
+    else:
+        current = DATA_DIR.resolve()
+
+    if not current.exists() or not current.is_dir():
+        return jsonify({
+            "error": "not a directory",
+            "message": f"路径不存在或不是文件夹: {current}"
+        }), 400
+
+    if not is_within_browse_root(current):
+        return jsonify({
+            "error": "path not allowed",
+            "message": f"该路径不在允许范围内: {current}"
+        }), 403
+
+    directories = []
+    image_count = 0
+
+    try:
+        for entry in sorted(
+            current.iterdir(),
+            key=lambda item: item.name.lower()
+        ):
+            if entry.is_dir():
+                if entry.name.startswith("."):
+                    continue
+
+                if entry.name in IGNORED_DIRECTORY_NAMES:
+                    continue
+
+                directories.append({
+                    "name": entry.name,
+                    "path": str(entry)
+                })
+            elif entry.is_file() and is_image_file(entry.name):
+                image_count += 1
+    except (OSError, PermissionError) as error:
+        return jsonify({
+            "error": "cannot list directory",
+            "message": str(error)
+        }), 500
+
+    parent = current.parent
+    parent_path = None
+
+    if parent != current and is_within_browse_root(parent):
+        parent_path = str(parent)
+
+    return jsonify({
+        "path": str(current),
+        "parent": parent_path,
+        "directories": directories,
+        "imageCount": image_count,
+        "isCurrentDataDir": current == DATA_DIR.resolve()
     })
 
 
@@ -778,6 +975,15 @@ if __name__ == "__main__":
         help="随机分配种子，默认 12345"
     )
 
+    parser.add_argument(
+        "--browse-root",
+        default="",
+        help=(
+            "限制前端可浏览/选择的文件夹范围（可选）。"
+            "不传时不限制。"
+        )
+    )
+
     args = parser.parse_args()
 
     DATA_DIR = Path(args.data_dir).expanduser().resolve()
@@ -806,10 +1012,26 @@ if __name__ == "__main__":
         ASSIGNMENT_FILE = Path(
             args.assignment_file
         ).expanduser().resolve()
+
+        ASSIGNMENT_FILE_EXPLICIT = True
     else:
-        ASSIGNMENT_FILE = (
-            DATA_DIR / ".web_labelme_assignments.json"
-        )
+        ASSIGNMENT_FILE = get_default_assignment_file(DATA_DIR)
+        ASSIGNMENT_FILE_EXPLICIT = False
+
+    if args.browse_root:
+        BROWSE_ROOT = Path(
+            args.browse_root
+        ).expanduser().resolve()
+
+        if not BROWSE_ROOT.is_dir():
+            parser.error(
+                f"--browse-root 不是有效目录: {BROWSE_ROOT}"
+            )
+
+        if not is_within_browse_root(DATA_DIR):
+            parser.error(
+                "--data-dir 必须位于 --browse-root 之内"
+            )
 
     all_images = scan_images()
     build_user_assignments(all_images)
@@ -818,6 +1040,7 @@ if __name__ == "__main__":
     print(f"Found images: {len(all_images)}")
     print(f"Filename groups: {FILENAME_GROUPS or 'disabled'}")
     print(f"User quotas: {USER_QUOTAS or 'disabled'}")
+    print(f"Browse root: {BROWSE_ROOT or 'unrestricted'}")
 
     if USER_QUOTAS:
         print(f"Assignment file: {ASSIGNMENT_FILE}")
